@@ -1,5 +1,5 @@
 # Stage 1: Dependencies and Build
-FROM node:20
+FROM node:20-alpine AS builder
 
 WORKDIR /app
 
