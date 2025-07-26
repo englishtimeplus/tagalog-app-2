@@ -1,6 +1,6 @@
 import { relations, sql } from "drizzle-orm";
 import { index, primaryKey, sqliteTableCreator } from "drizzle-orm/sqlite-core";
-import { type AdapterAccount } from "next-auth/adapters";
+import { type AdapterAccount } from "next-auth/adapters"; 
 
 /**
  * This is an example of how to use the multi-project schema feature of Drizzle ORM. Use the same
@@ -43,10 +43,12 @@ export const users = createTable("user", (d) => ({
   email: d.text({ length: 255 }).notNull(),
   emailVerified: d.integer({ mode: "timestamp" }).default(sql`(unixepoch())`),
   image: d.text({ length: 255 }),
+  password: d.text({ length: 255 }),
 }));
 
 export const usersRelations = relations(users, ({ many }) => ({
   accounts: many(accounts),
+  progress: many(userProgress),
 }));
 
 export const accounts = createTable(
@@ -105,3 +107,78 @@ export const verificationTokens = createTable(
   }),
   (t) => [primaryKey({ columns: [t.identifier, t.token] })],
 );
+
+export const wordsTable = createTable("words_table", (d) => ({
+  id: d.integer({ mode: "number" }).primaryKey({ autoIncrement: true }),
+  no: d.integer({ mode: "number" }).notNull(),
+  tagalog: d.text({ length: 255 }).notNull(),
+  english: d.text({ length: 255 }).notNull(),
+  example: d.text({ length: 255 }).notNull(),
+  translation: d.text({ length: 255 }).notNull(),
+  chunk: d.text({ length: 255 }).notNull(),
+  audio1: d.text({ length: 255 }),
+  audio2: d.text({ length: 255 }),
+  createdAt: d.integer({ mode: "timestamp" }).notNull(),
+}),
+  (t) => [index("no_idx").on(t.no)],
+);
+
+export const userProgress = createTable("user_progress", (d) => ({
+  id: d.integer({ mode: "number" }).primaryKey({ autoIncrement: true }),
+  userId: d
+    .text({ length: 255 })
+    .notNull()
+    .references(() => users.id),
+  currentPage: d.integer({ mode: "number" }).notNull().default(1),
+  totalPages: d.integer({ mode: "number" }).notNull().default(1),
+  wordsCompleted: d.integer({ mode: "number" }).notNull().default(0),
+  totalWords: d.integer({ mode: "number" }).notNull().default(0),
+  lastAccessed: d
+    .integer({ mode: "timestamp" })
+    .default(sql`(unixepoch())`)
+    .notNull(),
+  createdAt: d
+    .integer({ mode: "timestamp" })
+    .default(sql`(unixepoch())`)
+    .notNull(),
+  updatedAt: d.integer({ mode: "timestamp" }).$onUpdate(() => new Date()),
+}),
+  (t) => [
+    index("user_progress_user_id_idx").on(t.userId),
+    index("user_progress_last_accessed_idx").on(t.lastAccessed),
+  ],
+);
+
+export const userProgressRelations = relations(userProgress, ({ one }) => ({
+  user: one(users, { fields: [userProgress.userId], references: [users.id] }),
+}));
+
+export const userWordProgress = createTable("user_word_progress", (d) => ({
+  id: d.integer({ mode: "number" }).primaryKey({ autoIncrement: true }),
+  userId: d
+    .text({ length: 255 })
+    .notNull()
+    .references(() => users.id),
+  wordId: d
+    .integer({ mode: "number" })
+    .notNull()
+    .references(() => wordsTable.id),
+  known: d.integer({ mode: "boolean" }).notNull(), // true = known (right swipe), false = unknown (left swipe)
+  lessonNumber: d.integer({ mode: "number" }).notNull(),
+  createdAt: d
+    .integer({ mode: "timestamp" })
+    .default(sql`(unixepoch())`)
+    .notNull(),
+  updatedAt: d.integer({ mode: "timestamp" }).$onUpdate(() => new Date()),
+}),
+  (t) => [
+    index("user_word_progress_user_id_idx").on(t.userId),
+    index("user_word_progress_word_id_idx").on(t.wordId),
+    index("user_word_progress_lesson_idx").on(t.lessonNumber),
+  ],
+);
+
+export const userWordProgressRelations = relations(userWordProgress, ({ one }) => ({
+  user: one(users, { fields: [userWordProgress.userId], references: [users.id] }),
+  word: one(wordsTable, { fields: [userWordProgress.wordId], references: [wordsTable.id] }),
+}));
