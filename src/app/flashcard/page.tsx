@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { api } from "@/trpc/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,7 +15,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export default function FlashcardPage() {
+export default function FlashcardPage() { 
+ 
   const { data: session, status } = useSession();
   const router = useRouter();
   const [wordsPerLesson] = useState(20);
@@ -126,7 +127,7 @@ export default function FlashcardPage() {
                 variant="outline"
                 onClick={(e) => {
                   e.stopPropagation();
-                  router.push('/flashcard/card');
+                  router.push(`/flashcard/card?lesson=${lesson.lessonNumber}`);
                 }}
               >
                 플래시카드 1
@@ -149,3 +150,6 @@ export default function FlashcardPage() {
     </div>
   );
 }
+
+
+ 

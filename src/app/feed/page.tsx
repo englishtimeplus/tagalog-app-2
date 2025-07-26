@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import { useSession } from "next-auth/react";
 import { api } from "@/trpc/react";
@@ -25,6 +25,8 @@ export default function TinderPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const [orderBy, setOrderBy] = useState<"id" | "no" | "tagalog" | "english" | "createdAt">("id");
   const [orderDirection, setOrderDirection] = useState<"asc" | "desc">("asc");
+  const [audioLoading, setAudioLoading] = useState<Record<string, boolean>>({});
+  const progressUpdatedRef = useRef<number | null>(null);
 
   const { data, isLoading, error } = api.words.getWords.useQuery({
     page: currentPage,
@@ -56,9 +58,9 @@ export default function TinderPage() {
     }
   }, [userProgress, session?.user]);
 
-  // Save progress when page changes
   useEffect(() => {
-    if (session?.user && data?.pagination) {
+    if (session?.user && data?.pagination && progressUpdatedRef.current !== currentPage) {
+      progressUpdatedRef.current = currentPage;
       updateProgressMutation.mutate({
         currentPage,
         totalPages: data.pagination.totalPages,
@@ -66,13 +68,20 @@ export default function TinderPage() {
         totalWords: data.pagination.total,
       });
     }
-  }, [currentPage, data?.pagination, session?.user,]);
+  }, [currentPage, data?.pagination, session?.user, updateProgressMutation]);
 
-  const playAudio = (wordNo: number, type: "word" | "sentence") => {
-    const audio = new Audio(`/audio/row_${String(wordNo).padStart(4, '0')}_${type}.mp3`);
-    audio.play().catch((error) => {
+  const playAudio = async (wordNo: number, type: "word" | "sentence") => {
+    const key = `${wordNo}-${type}`;
+    setAudioLoading((prev) => ({ ...prev, [key]: true }));
+    try {
+      const audioPath = `${process.env.NEXT_PUBLIC_AUDIO_URL}/row_${String(wordNo).padStart(4, '0')}_${type}.mp3?raw=true`;
+      const audio = new Audio(audioPath);
+      await audio.play();
+    } catch (error) {
       console.error("Error playing audio:", error);
-    });
+    } finally {
+      setAudioLoading((prev) => ({ ...prev, [key]: false }));
+    }
   };
 
   const handleNextSession = () => {
@@ -240,26 +249,23 @@ export default function TinderPage() {
             <TableBody>
               {data?.words.map((word) => (
                 <TableRow key={word.id}>
-                  <TableCell className="font-medium">{word.no}
-                    
-                  </TableCell>
+                  <TableCell className="font-medium">{word.no}</TableCell>
                   <TableCell>
                     <div className="space-y-2 ">
-                    <motion.div
-                      className="font-semibold text-blue-600 cursor-pointer hover:text-blue-800 transition-colors text-left"
-                      onClick={() => playAudio(word.no, "word")}
-                      title="Click to play pronunciation"
-                      whileTap={{
-                        scale: [1, 1.2, 1],
-                      }}
-                      transition={{
-                        duration: 0.2,
-                        ease: "easeInOut",
-                      }}
-                    >
-                      {word.tagalog}
-                    </motion.div>
-
+                      <Button
+                        variant="outline"
+                        onClick={() => playAudio(word.no, "word")}
+                        disabled={audioLoading[`${word.no}-word`]}
+                        className="flex items-center"
+                      >
+                        {audioLoading[`${word.no}-word`] ? (
+                          <svg className="animate-spin mr-2 h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : null}
+                        {word.tagalog}
+                      </Button>
                       <div className="text-sm text-muted-foreground">
                         {word.english}
                       </div>
@@ -267,15 +273,20 @@ export default function TinderPage() {
                   </TableCell>
                   <TableCell>
                     <div className="space-y-2">
-                      <motion.div 
-                        className="truncate cursor-pointer hover:text-gray-600 transition-colors"
+                      <Button
+                        variant="outline"
                         onClick={() => playAudio(word.no, "sentence")}
-                        title="Click to play example sentence"
-                        whileTap={{ scale: 1.3 }}
-                        transition={{ type: "spring", stiffness: 300, damping: 20 }}
+                        disabled={audioLoading[`${word.no}-sentence`]}
+                        className="flex items-center"
                       >
+                        {audioLoading[`${word.no}-sentence`] ? (
+                          <svg className="animate-spin mr-2 h-4 w-4 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        ) : null}
                         {word.example}
-                      </motion.div>
+                      </Button>
                       <div className="text-green-600 text-sm">
                         {word.translation}
                       </div>

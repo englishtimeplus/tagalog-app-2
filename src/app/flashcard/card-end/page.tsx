@@ -6,12 +6,14 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { api } from "@/trpc/react";
 import { CheckIcon, XIcon, BookIcon } from "lucide-react";
+import { Suspense } from "react";
 
-export default function FlashcardCardEndPage() {
-  const router = useRouter();
-  const searchParams = useSearchParams();
+function FlashcardCardEndP() {
+  const searchParams = useSearchParams(); 
+  const params = { lesson: searchParams.get("lesson") ?? "1" };
+  const router = useRouter(); 
   const { data: session } = useSession();
-  const lesson = searchParams.get("lesson");
+  const lesson = params.lesson;
   const lessonNumber = lesson ? parseInt(lesson) : 1;
 
   const { data: stats, isLoading } = api.words.getLessonStats.useQuery(
@@ -146,7 +148,7 @@ export default function FlashcardCardEndPage() {
             <div className="text-center pt-4 border-t">
               {accuracy >= 80 ? (
                 <p className="text-green-600 font-medium">
-                  Excellent work! You're mastering these words! 🌟
+                  Excellent work! You&apos;re mastering these words! 🌟
                 </p>
               ) : accuracy >= 60 ? (
                 <p className="text-yellow-600 font-medium">
@@ -154,7 +156,7 @@ export default function FlashcardCardEndPage() {
                 </p>
               ) : (
                 <p className="text-red-600 font-medium">
-                  Don't give up! Review these words and try again. 💪
+                  Don&apos;t give up! Review these words and try again. 💪
                 </p>
               )}
             </div>
@@ -163,4 +165,11 @@ export default function FlashcardCardEndPage() {
       </div>
     </div>
   );
+}
+
+export default function FlashcardCardEndPage() {
+ 
+  return <Suspense fallback={<div>Loading...</div>}><FlashcardCardEndP /></Suspense>;
+
+ 
 }

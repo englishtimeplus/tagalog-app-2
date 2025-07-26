@@ -12,6 +12,8 @@ function FlashcardCardContent() {
   const lessonNumber = parseInt(searchParams.get("lesson") ?? "1");
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [showTranslation, setShowTranslation] = useState(false);
+  const [isPlayingWord, setIsPlayingWord] = useState(false);
+  const [isPlayingSentence, setIsPlayingSentence] = useState(false);
 
   const { data: words, isLoading, error } = api.words.getWordsByLesson.useQuery({
     lessonNumber,
@@ -20,24 +22,31 @@ function FlashcardCardContent() {
 
   const currentWord = words?.[currentCardIndex];
 
-  const playAudio = (audioPath: string) => {
+  const playAudio = async (audioPath: string, setLoadingState: (loading: boolean) => void) => {
+    setLoadingState(true);
     const audio = new Audio(audioPath);
-    audio.play().catch((error) => {
+    
+    try {
+      await audio.play();
+      audio.addEventListener('ended', () => setLoadingState(false));
+      audio.addEventListener('error', () => setLoadingState(false));
+    } catch (error) {
       console.error("Error playing audio:", error);
-    });
-  };
-
-  const playWordAudio = () => {
-    if (currentWord?.no) {
-      const paddedNo = currentWord.no.toString().padStart(4, '0');
-      playAudio(`/audio/row_${paddedNo}_word.mp3`);
+      setLoadingState(false);
     }
   };
 
-  const playSentenceAudio = () => {
+  const playWordAudio = async () => {
     if (currentWord?.no) {
       const paddedNo = currentWord.no.toString().padStart(4, '0');
-      playAudio(`/audio/row_${paddedNo}_sentence.mp3`);
+      await playAudio(`${process.env.NEXT_PUBLIC_AUDIO_URL}/row_${paddedNo}_word.mp3?raw=true`, setIsPlayingWord);
+    }
+  };
+
+  const playSentenceAudio = async () => {
+    if (currentWord?.no) {
+      const paddedNo = currentWord.no.toString().padStart(4, '0');
+      await playAudio(`${process.env.NEXT_PUBLIC_AUDIO_URL}/row_${paddedNo}_sentence.mp3?raw=true`, setIsPlayingSentence);
     }
   };
 
@@ -138,14 +147,16 @@ function FlashcardCardContent() {
             <Button 
               variant="outline" 
               onClick={playWordAudio}
+              disabled={isPlayingWord}
             >
-              Word
+              {isPlayingWord ? "Playing..." : "Word"}
             </Button>
             <Button 
               variant="outline" 
               onClick={playSentenceAudio}
+              disabled={isPlayingSentence}
             >
-              Sentence
+              {isPlayingSentence ? "Playing..." : "Sentence"}
             </Button>
           </CardFooter>
         </Card>

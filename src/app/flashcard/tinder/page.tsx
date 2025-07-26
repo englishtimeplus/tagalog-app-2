@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@/trpc/react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,12 +27,22 @@ function TinderCard({ word, onSwipe, isTopCard, style }: TinderCardProps) {
   const [isDragging, setIsDragging] = useState(false);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [startPos, setStartPos] = useState({ x: 0, y: 0 });
+  const [loadingAudio, setLoadingAudio] = useState<'word' | 'sentence' | null>(null);
 
   const playAudio = (type: 'word' | 'sentence') => {
+    setLoadingAudio(type);
     const paddedId = word.id.toString().padStart(4, '0');
-    const audioPath = `/audio/row_${paddedId}_${type}.mp3`;
+    const audioPath = `${process.env.NEXT_PUBLIC_AUDIO_URL}/row_${paddedId}_${type}.mp3?raw=true`;
     const audio = new Audio(audioPath);
-    audio.play().catch(console.error);
+    
+    audio.addEventListener('loadstart', () => setLoadingAudio(type));
+    audio.addEventListener('canplaythrough', () => setLoadingAudio(null));
+    audio.addEventListener('error', () => setLoadingAudio(null));
+    
+    audio.play().catch((error) => {
+      console.error(error);
+      setLoadingAudio(null);
+    });
   };
 
   const handleMouseDown = (e: React.MouseEvent) => {
@@ -99,16 +109,26 @@ function TinderCard({ word, onSwipe, isTopCard, style }: TinderCardProps) {
             }}
           >
             {word.tagalog}
-          </h2> 
+          </h2>
+          {loadingAudio === 'word' && (
+            <div className="flex justify-center mb-2">
+              <div className="animate-spin rounded-full h-4 w-4 border-2 border-blue-600 border-t-transparent"></div>
+            </div>
+          )} 
           {showAnswer && (
             <div className="space-y-4 mb-2">
                   <p className="text-lg text-gray-600 mb-6">{word.english}</p>
               <div className="p-0 bg-gray-50 rounded-lg">
                 <p className="text-sm text-gray-500 mb-1">Example:</p>
-                <p className="text-gray-700" onClick={(e) => {
+                <p className="text-gray-700 cursor-pointer hover:text-gray-900 transition-colors" onClick={(e) => {
                     e.stopPropagation();
                     playAudio('sentence');
                   }}>{word.example}</p>
+                {loadingAudio === 'sentence' && (
+                  <div className="flex justify-center mt-2">
+                    <div className="animate-spin rounded-full h-4 w-4 border-2 border-gray-600 border-t-transparent"></div>
+                  </div>
+                )}
               </div>
               <div className="p-4 bg-blue-50 rounded-lg">
                 <p className="text-sm text-blue-600 mb-1">Translation:</p>
@@ -167,12 +187,12 @@ function TinderCard({ word, onSwipe, isTopCard, style }: TinderCardProps) {
     </Card>
   );
 }
-
-export default function TinderPage() {
+function Tinder() { 
   const { data: session } = useSession();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const lessonNumber = parseInt(searchParams.get('lesson') ?? '1');
+  const params = { lesson: searchParams.get("lesson") ?? "1" };
+  const lessonNumber = parseInt(params.lesson);
   
   const [currentCardIndex, setCurrentCardIndex] = useState(0);
   const [studiedCount, setStudiedCount] = useState(0);
@@ -351,4 +371,10 @@ export default function TinderPage() {
       </div>
     </div>
   );
+  
+}
+
+export default function TinderPage() {
+
+  return <Suspense fallback={<div>Loading...</div>}><Tinder /></Suspense>;
 }
