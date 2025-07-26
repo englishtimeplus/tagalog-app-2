@@ -3,11 +3,13 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install libc6-compat for some Node.js dependencies
-RUN apk add --no-cache libc6-compat
+# Install libc6-compat for some Node.js dependencies + curl + pnpm
+RUN apk add --no-cache libc6-compat curl && \
+  corepack enable && \
+  corepack prepare pnpm@latest --activate
 
 # Copy package.json and lock files
-COPY package.json yarn.lock* package-lock.json* pnpm-lock.yaml* ./
+COPY package.json pnpm-lock.yaml ./
 
 # Install production dependencies (and dev dependencies in a separate step if needed for build tools)
 RUN \
