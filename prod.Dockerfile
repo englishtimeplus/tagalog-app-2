@@ -44,4 +44,4 @@ COPY --from=builder /app/.next/static ./.next/static
 EXPOSE 3000
 
 # Command to run the Next.js application in standalone mode
-CMD ["node", "server.js"]
+CMD ["node", "server.js"]n
