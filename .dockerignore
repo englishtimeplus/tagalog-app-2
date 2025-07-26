@@ -2,3 +2,5 @@ node_modules
 .DS_Store
 *.log
 **/__tests__
+yarn.lock
+package-lock.json

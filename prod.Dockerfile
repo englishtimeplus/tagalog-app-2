@@ -1,47 +1,66 @@
-# Stage 1: Dependencies and Build
+# Stage 1: Dependencies
+FROM node:20-alpine AS deps
+
+WORKDIR /app
+
+# Install system dependencies
+RUN apk add --no-cache libc6-compat curl && \
+    corepack enable && \
+    corepack prepare pnpm@latest --activate
+
+# Copy package files
+COPY package.json pnpm-lock.yaml* ./
+
+# Install dependencies only
+RUN pnpm install --frozen-lockfile --prod=false
+
+# Stage 2: Build
 FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Install libc6-compat for some Node.js dependencies + curl + pnpm
-RUN apk add --no-cache libc6-compat curl && \
-  corepack enable && \
-  corepack prepare pnpm@latest --activate
-
-# Copy package.json and lock files
-COPY package.json pnpm-lock.yaml ./
-
-# Install production dependencies (and dev dependencies in a separate step if needed for build tools)
-RUN \
-  if [ -f "yarn.lock" ]; then yarn install --frozen-lockfile; \
-  elif [ -f "package-lock.json" ]; then npm ci; \
-  elif [ -f "pnpm-lock.yaml" ]; then pnpm install --frozen-lockfile; \
-  else npm ci; \
-  fi
-
-# Copy the rest of the application code
+# Copy dependencies from deps stage
+COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 
-# Build the Next.js application
-# Ensure 'output: "standalone"' is set in next.config.js
-RUN npm run build
+# Set environment for build
+ENV NEXT_TELEMETRY_DISABLED 1
 
-# Stage 2: Production Runtime
-FROM node:18-alpine AS runner
+# Build the application
+RUN corepack enable && \
+    corepack prepare pnpm@latest --activate && \
+    pnpm run build
+
+# Stage 3: Runtime
+FROM node:20-alpine AS runner
 
 WORKDIR /app
 
-# Set the NODE_ENV to production
-ENV NODE_ENV production
+# Set production environment
+ENV NODE_ENV=production
+ENV NEXT_TELEMETRY_DISABLED=1
 
-# Copy the standalone output from the builder stage
-COPY --from=builder /app/.next/standalone ./
+# Create non-root user for security
+RUN addgroup --system --gid 1001 nodejs && \
+    adduser --system --uid 1001 nextjs
+
+# Copy built application
 COPY --from=builder /app/public ./public
-# If you have static assets in .next/static that aren't included in standalone, copy them
-COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
+COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
 
-# Expose the port Next.js will run on
+# Switch to non-root user
+USER nextjs
+
+# Expose port
 EXPOSE 3000
 
-# Command to run the Next.js application in standalone mode
-CMD ["node", "server.js"]n
+ENV PORT=3000
+ENV HOSTNAME="0.0.0.0"
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:3000/api/health || exit 1
+
+# Start the application
+CMD ["node", "server.js"]
